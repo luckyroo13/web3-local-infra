@@ -1,0 +1,16 @@
+services:
+  ethereum-node:
+    image: ghcr.io/foundry-rs/foundry:latest
+    container_name: local-evm-blockchain
+    # Cambiamos el parámetro obsoleto por el correcto: --allow-origin
+    entrypoint: anvil --host 0.0.0.0 --allow-origin "*"
+    ports:
+      - "8545:8545"
+    restart: always
+
+  block-explorer:
+    image: otterscan/otterscan:latest
+    container_name: web-block-explorer
+    ports:
+      - "8080:80"
+    restart: always
