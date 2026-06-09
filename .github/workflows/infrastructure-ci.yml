@@ -1,0 +1,39 @@
+name: Infrastructure Validation CI
+
+# ¿Cuándo debe ejecutarse este robot?
+# Cada vez que alguien haga push o intente unir código a la rama principal (main)
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  test-infrastructure:
+    # GitHub nos presta un servidor Ubuntu limpio y temporal
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Clonar el repositorio
+        uses: actions/checkout@v4
+
+      - name: 🚀 Levantar la Infraestructura Web3 (Docker Compose)
+        run: docker compose up -d
+
+      - name: ⏳ Esperar a que los nodos arranquen
+        run: sleep 10 # Le damos 10 segundos a Anvil y Grafana para despertar
+
+      - name: 🩺 Prueba de Vida: Conexión RPC al Nodo Ethereum
+        # Mandamos una petición al nodo para preguntarle en qué bloque está.
+        # Si el nodo responde, significa que la infraestructura es sólida y está recibiendo tráfico.
+        run: |
+          curl -s -X POST --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' -H "Content-Type: application/json" http://localhost:8545 | grep "result"
+
+      - name: 📊 Verificar el estado de todos los contenedores
+        # Imprime en los registros de GitHub que todos los contenedores (Grafana, Prometheus, etc.) están vivos
+        run: docker ps
+
+      - name: 🧹 Apagar y limpiar el servidor
+        # Esto se ejecuta siempre, incluso si los pasos anteriores fallaron, para no dejar procesos colgados
+        if: always()
+        run: docker compose down
