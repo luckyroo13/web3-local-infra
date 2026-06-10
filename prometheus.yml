@@ -5,7 +5,11 @@ scrape_configs:
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:9090']
-  
-  - job_name: 'grafana'
+
+  - job_name: 'cadvisor'
     static_configs:
-      - targets: ['grafana-dashboard:3000']
+      - targets: ['cadvisor:8080']
+
+  - job_name: 'nginx-proxy'
+    static_configs:
+      - targets: ['nginx-exporter:9113']
