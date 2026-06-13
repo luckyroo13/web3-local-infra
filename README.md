@@ -1,52 +1,79 @@
-Web3 Local Observability Stack
+<div align="center">
 
-A containerized local Ethereum environment built for Site Reliability Engineering (SRE) and infrastructure testing.
+# Smart RPC Gateway
 
-This stack replaces the "it works on my machine" excuse with a deterministic, fully monitored local network, allowing teams to test smart contracts and observe infrastructure bottlenecks before hitting production.
+> Production-ready failover proxy that keeps dApps online when your local node dies — switches to PublicNode in <2s with zero downtime
 
-Architecture
+[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker)](https://github.com/luckyroo13/web3-local-infra/pkgs/container/web3-local-infra)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Last Commit](https://img.shields.io/github/last-commit/luckyroo13/web3-local-infra)](https://github.com/luckyroo13/web3-local-infra)
 
-The environment is defined in Docker Compose and spins up the following services:
+<img src="assets/failover-demo.gif" alt="Failover demo" width="700" />
 
-• Anvil: The local EVM node serving as the execution layer (port 8545).
+*Watch: local Anvil stops → gateway auto-routes to mainnet → local recovers*
 
-• Otterscan: A lightweight block explorer to visually inspect state changes (port 8080).
+</div>
 
-• Prometheus: The telemetry engine scraping metrics from the network (port 9090).
+## Why this exists
 
-• cAdvisor: Hardware monitor tracking CPU, memory, and network usage per container.
+dApps lose users on every RPC outage. Hosted providers charge per request and rate-limit during congestion. I built this because at FedEx I learned a package that doesn't arrive is lost revenue — the same is true for a JSON-RPC request.
 
-• Grafana: The visualization layer for infrastructure metrics (port 3000).
+This gateway gives you:
+- **Hybrid reliability**: use your fast local node, fall back to public infra automatically
+- **Observability by default**: know latency and failover rate before users complain
+- **Zero vendor lock-in**: run it on your laptop today, on any cloud tomorrow
 
-Usage
+## Quick Start (30 seconds)
 
-Start the network:
-
-[bash]
+```bash
+git clone [https://github.com/luckyroo13/web3-local-infra](https://github.com/luckyroo13/web3-local-infra) && cd web3-local-infra
 docker compose up -d
-
-
-Trigger a test transaction to generate network activity:
-
-[bash]
-curl -X POST --data '{"jsonrpc":"2.0","method":"eth_sendTransaction","params":[{"from":"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266","to":"0x70997970C51812dc3A010C7d01b50e0d17dc79C8","value":"0xde0b6b3a7640000"}],"id":1}' -H "Content-Type: application/json" http://localhost:8545
-
-
-Verify the transaction and block creation by checking the Otterscan UI at http://localhost:8080.
-
-Monitoring
-
-To see the observability suite in action:
-
-1. Open Grafana at http://localhost:3000 (credentials: admin / admin).
-
-2. Add Prometheus as a Data Source with the internal container URL http://prometheus-metrics:9090.
-
-3. Import the official cAdvisor dashboard by entering ID 14282.
-
-Tear down the environment when finished:
-
-[bash]
-docker compose down
-
-
+curl -X POST http://localhost:8888 -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'
+Open http://localhost:3000 (admin/admin) for Grafana.
+Features
+Feature	What it solves
+Transparent Failover	Intercepts 502/504 from primary, reroutes to PublicNode securely
+Dynamic DNS Resolution	Nginx uses Docker DNS & Google DNS (127.0.0.11 / 8.8.8.8) so proxy starts even if Anvil is down
+Low-overhead Telemetry	Nginx exporter → Prometheus scrape every 5s → Grafana dashboard 12708
+Self-healing	When Anvil returns, traffic automatically resumes without restart
+Full Local Stack	Anvil + Otterscan + Prometheus + Grafana + cAdvisor in one compose
+Architecture
+Plaintext
+Client → :8888 Nginx → Primary: Anvil :8545
+                   ↘ Backup: ethereum-rpc.publicnode.com:443 (on failure)
+Metrics: Nginx :8080 → exporter :9113 → Prometheus :9090 → Grafana :3000
+Proof of Work Checklist
+Hiring managers look for this:
+[x] Deployed: works locally with real endpoints
+[x] Monitoring: Prometheus + Grafana dashboards
+[x] Documented: this README with architecture and decisions
+[x] Public: real commit history
+[ ] CI/CD: GitHub Actions for build/test (in progress)
+[ ] IaC: Terraform for reproducible deploy (in progress)
+Local Ports
+Port	Service
+8888	Smart RPC Proxy
+8545	Anvil EVM
+8080	Otterscan Explorer
+3000	Grafana
+9090	Prometheus
+8081	cAdvisor
+9113	Nginx Exporter
+Resilience Testing
+Normal: curl to :8888 returns "result":"0x0" from Anvil
+Crash: docker stop local-evm-blockchain
+Failover: same curl returns real mainnet block from PublicNode
+Recovery: docker start local-evm-blockchain → traffic returns to local automatically
+Telemetry Setup
+Grafana → http://localhost:3000 (admin/admin)
+Add data source: http://prometheus:9090
+Import dashboard ID 12708 (Nginx Prometheus)
+Roadmap
+[ ] GitHub Actions: lint, build, test compose
+[ ] k3s manifests for cheap K8s demo
+[ ] Terraform module (VPC + EC2) for optional cloud deploy
+[ ] Alertmanager → Slack alerts on failover
+Contributing
+PRs welcome. Open an issue first for major changes.
+License
+MIT — see LICENSE
